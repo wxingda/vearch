@@ -295,7 +295,7 @@ jobs:
         docker-compose -f cloud/docker-compose.yml start ps4
         docker-compose -f cloud/docker-compose.yml up ps5 -d
         while [ $anti_affinity -lt 4 ]; do
-          sed -i 's/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/' cloud/config_cluster.toml
+          sed -i "s/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/" cloud/config_cluster.toml
 
           docker-compose -f cloud/docker-compose.yml restart master1
           sleep 30
@@ -304,7 +304,7 @@ jobs:
           docker-compose -f cloud/docker-compose.yml restart master3
           sleep 30
           cd test
-          max_retries=10
+          max_retries=20
           retry=0
           while [ $retry -lt $max_retries ]; do
             pytest test_cluster_ps.py -x -k "TestAntiAffinity" --log-cli-level=INFO
@@ -319,11 +319,11 @@ jobs:
             sleep 5
           done
 
-          pytest test_cluster_ps.py -x -k "TestAntiAffinityFail" --log-cli-level=INFO
+          pytest test_cluster_ps.py -x -k "TestFailAntiAffinity" --log-cli-level=INFO
           pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
           
           cd ..
-          sed -i 's/replica_anti_affinity_strategy = $anti_affinity/replica_anti_affinity_strategy = 0/' cloud/config_cluster.toml
+          sed -i "s/replica_anti_affinity_strategy = $anti_affinity/replica_anti_affinity_strategy = 0/" cloud/config_cluster.toml
           anti_affinity=$((anti_affinity+1))
         done
 
