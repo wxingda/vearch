@@ -316,6 +316,9 @@ jobs:
             pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
             sleep 5
           done
+
+          pytest test_cluster_ps.py -x -k "TestAntiAffinityFail" --log-cli-level=INFO
+          pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
           
           cd ..
           sed -i 's/replica_anti_affinity_strategy = $anti_affinity/replica_anti_affinity_strategy = 0/' cloud/config_cluster.toml
