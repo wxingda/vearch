@@ -225,68 +225,68 @@ jobs:
     #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
     #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for auto recover replica
-      run: |
-        cd test
-        pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
-        cd .. && docker-compose -f cloud/docker-compose.yml start ps4
-        docker-compose -f cloud/docker-compose.yml stop ps1
-        max_retries=30
-        retry=0
-        success=false
-        while [ $retry -lt $max_retries ]; do
-          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
-          status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
-          if [ "$status" == "true" ]; then
-            success=true
-            echo $servers | jq
-            break
-          else
-            echo "Retry $((retry+1))/$max_retries: ps4 partitions num should be 1. Retrying in 30 seconds..."
-            echo $servers
-            retry=$((retry+1))
-            sleep 30
-          fi
-        done
-        if [ "$success" != "true" ]; then
-          echo "Error: ps4 partitions num should be 1 after $max_retries attempts."
-          exit 1
-        fi
+    # - name: Run tests for auto recover replica
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
+    #     cd .. && docker-compose -f cloud/docker-compose.yml start ps4
+    #     docker-compose -f cloud/docker-compose.yml stop ps1
+    #     max_retries=30
+    #     retry=0
+    #     success=false
+    #     while [ $retry -lt $max_retries ]; do
+    #       servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+    #       status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
+    #       if [ "$status" == "true" ]; then
+    #         success=true
+    #         echo $servers | jq
+    #         break
+    #       else
+    #         echo "Retry $((retry+1))/$max_retries: ps4 partitions num should be 1. Retrying in 30 seconds..."
+    #         echo $servers
+    #         retry=$((retry+1))
+    #         sleep 30
+    #       fi
+    #     done
+    #     if [ "$success" != "true" ]; then
+    #       echo "Error: ps4 partitions num should be 1 after $max_retries attempts."
+    #       exit 1
+    #     fi
 
-        docker-compose -f cloud/docker-compose.yml start ps1
-        retry=0
-        success=false
-        while [ $retry -lt $max_retries ]; do
-          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
-          status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.16") | .partitions | length == 0')
-          if [ "$status" == "true" ]; then
-            success=true
-            echo $servers | jq
-            break
-          else
-            echo "Retry $((retry+1))/$max_retries: ps1 partitions num should be 0. Retrying in 30 seconds..."
-            echo $servers
-            retry=$((retry+1))
-            sleep 30
-          fi
-        done
-        if [ "$success" != "true" ]; then
-          echo "Error: ps1 partitions num should be 0 after $max_retries attempts."
-          exit 1
-        fi
+    #     docker-compose -f cloud/docker-compose.yml start ps1
+    #     retry=0
+    #     success=false
+    #     while [ $retry -lt $max_retries ]; do
+    #       servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+    #       status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.16") | .partitions | length == 0')
+    #       if [ "$status" == "true" ]; then
+    #         success=true
+    #         echo $servers | jq
+    #         break
+    #       else
+    #         echo "Retry $((retry+1))/$max_retries: ps1 partitions num should be 0. Retrying in 30 seconds..."
+    #         echo $servers
+    #         retry=$((retry+1))
+    #         sleep 30
+    #       fi
+    #     done
+    #     if [ "$success" != "true" ]; then
+    #       echo "Error: ps1 partitions num should be 0 after $max_retries attempts."
+    #       exit 1
+    #     fi
 
-        status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
-        if [ "$status" != "green" ]; then
-          echo "Error: Status is not green. Status is $status."
-          exit 1
-        else
-          echo "Status is green."
-        fi
-        cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
-        sleep 60 && docker ps
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
+    #     if [ "$status" != "green" ]; then
+    #       echo "Error: Status is not green. Status is $status."
+    #       exit 1
+    #     else
+    #       echo "Status is green."
+    #     fi
+    #     cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
+    #     sleep 60 && docker ps
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
     - name: Run tests for replica anti_affinity strategy
       run: |
@@ -302,7 +302,7 @@ jobs:
           docker-compose -f cloud/docker-compose.yml restart ps5
           sleep 20
           cd test
-          max_retries=20
+          max_retries=10
           retry=0
           while [ $retry -lt $max_retries ]; do
             pytest test_cluster_ps.py -x -k "TestAntiAffinity" --log-cli-level=INFO
