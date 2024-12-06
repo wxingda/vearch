@@ -290,7 +290,7 @@ jobs:
 
     - name: Run tests for replica anti_affinity strategy
       run: |
-        anti_affinity=0
+        anti_affinity=1
 
         docker-compose -f cloud/docker-compose.yml start ps4
         docker-compose -f cloud/docker-compose.yml start ps5
