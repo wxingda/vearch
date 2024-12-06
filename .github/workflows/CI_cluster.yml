@@ -170,60 +170,60 @@ jobs:
     #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
     #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    # - name: Run tests for fail server
-    #   run: |
-    #     cd test
-    #     pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
-    #     sed -i 's/name = "vearch"/name = "test"/' ../cloud/config_cluster.toml
-    #     cd .. && docker-compose -f cloud/docker-compose.yml restart ps1
-    #     docker-compose -f cloud/docker-compose.yml restart router1
-    #     sed -i 's/name = "test"/name = "vearch"/' cloud/config_cluster.toml
-    #     sleep 60
-    #     status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
-    #     if [ "$status" != "yellow" ]; then
-    #       echo "Error: Status is not yellow. Status is $status."
-    #       exit 1
-    #     else
-    #       echo "Status is yellow."
-    #     fi
-    #     router_status=$(curl -u root:secret http://172.16.238.14:9001 || true)
-    #     if [ $? != 7 ]; then
-    #       echo "Router status is not OK. Status is $router_status."
-    #     else
-    #       echo "Router is OK. Status is $router_status."
-    #       exit 1
-    #     fi
-    #     docker-compose -f cloud/docker-compose.yml up ps4 -d
-    #     docker-compose -f cloud/docker-compose.yml restart router1
-    #     sleep 60
-    #     max_retries=30
-    #     retry=0
-    #     success=false
-    #     while [ $retry -lt $max_retries ]; do
-    #       status=$(curl -s -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
-    #       if [ "$status" == "green" ]; then
-    #         success=true
-    #         break
-    #       else
-    #         echo "Retry $((retry+1))/$max_retries: Status is not green. Status is $status. Retrying in 30 seconds..."
-    #         retry=$((retry+1))
-    #         sleep 30
-    #       fi
-    #     done
+    - name: Run tests for fail server
+      run: |
+        cd test
+        pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
+        sed -i 's/name = "vearch"/name = "test"/' ../cloud/config_cluster.toml
+        cd .. && docker-compose -f cloud/docker-compose.yml restart ps1
+        docker-compose -f cloud/docker-compose.yml restart router1
+        sed -i 's/name = "test"/name = "vearch"/' cloud/config_cluster.toml
+        sleep 60
+        status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
+        if [ "$status" != "yellow" ]; then
+          echo "Error: Status is not yellow. Status is $status."
+          exit 1
+        else
+          echo "Status is yellow."
+        fi
+        router_status=$(curl -u root:secret http://172.16.238.14:9001 || true)
+        if [ $? != 7 ]; then
+          echo "Router status is not OK. Status is $router_status."
+        else
+          echo "Router is OK. Status is $router_status."
+          exit 1
+        fi
+        docker-compose -f cloud/docker-compose.yml up ps4 -d
+        docker-compose -f cloud/docker-compose.yml restart router1
+        sleep 60
+        max_retries=30
+        retry=0
+        success=false
+        while [ $retry -lt $max_retries ]; do
+          status=$(curl -s -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
+          if [ "$status" == "green" ]; then
+            success=true
+            break
+          else
+            echo "Retry $((retry+1))/$max_retries: Status is not green. Status is $status. Retrying in 30 seconds..."
+            retry=$((retry+1))
+            sleep 30
+          fi
+        done
 
-    #     if [ "$success" != "true" ]; then
-    #       echo "Error: Status is not green after $max_retries attempts. Status is $status."
-    #       exit 1
-    #     else
-    #       echo "Status is green."
-    #     fi
-    #     docker-compose -f cloud/docker-compose.yml restart ps1
-    #     sleep 60
-    #     cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-    #     cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
-    #     sleep 30 && docker ps
-    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+        if [ "$success" != "true" ]; then
+          echo "Error: Status is not green after $max_retries attempts. Status is $status."
+          exit 1
+        else
+          echo "Status is green."
+        fi
+        docker-compose -f cloud/docker-compose.yml restart ps1
+        sleep 60
+        cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+        cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
+        sleep 30 && docker ps
+        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
     # - name: Run tests for auto recover replica
     #   run: |
@@ -293,7 +293,7 @@ jobs:
         anti_affinity=1
 
         docker-compose -f cloud/docker-compose.yml start ps4
-        docker-compose -f cloud/docker-compose.yml start ps5
+        docker-compose -f cloud/docker-compose.yml up ps5 -d
         while [ $anti_affinity -lt 4 ]; do
           sed -i 's/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/' cloud/config_cluster.toml
 
