@@ -297,10 +297,12 @@ jobs:
         while [ $anti_affinity -lt 4 ]; do
           sed -i 's/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/' cloud/config_cluster.toml
 
-          docker-compose -f cloud/docker-compose.yml --profile cluster restart
-          docker-compose -f cloud/docker-compose.yml restart ps4
-          docker-compose -f cloud/docker-compose.yml restart ps5
-          sleep 20
+          docker-compose -f cloud/docker-compose.yml restart master1
+          sleep 30
+          docker-compose -f cloud/docker-compose.yml restart master2
+          sleep 30
+          docker-compose -f cloud/docker-compose.yml restart master3
+          sleep 30
           cd test
           max_retries=10
           retry=0
