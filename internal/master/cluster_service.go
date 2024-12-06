@@ -553,7 +553,7 @@ func (ms *masterService) selectServersForPartition(servers []*entity.Server, ser
 			continue
 		}
 
-		if zone != "" && zoneCount[zone] >= int(originReplicaNum) {
+		if zone != "" && zoneCount[zone] > 0 {
 			continue
 		}
 
