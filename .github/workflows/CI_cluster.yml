@@ -334,12 +334,13 @@ jobs:
           sed -i "s/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/" cloud/config_cluster.toml
           cat cloud/config_cluster.toml
 
-          for ps in ps1 ps2 ps3 ps4 ps5; do
-            docker-compose -f cloud/docker-compose.yml restart $ps
-          done
-
           for master in master1 master2 master3; do
             docker-compose -f cloud/docker-compose.yml restart $master
+          done
+
+          for ps in ps1 ps2 ps3 ps4 ps5; do
+            docker-compose -f cloud/docker-compose.yml restart $ps
+            docker exec -it $ps env
           done
 
           sleep 20
