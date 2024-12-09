@@ -347,8 +347,8 @@ jobs:
           retry=0
           while [ $retry -lt $max_retries ]; do
             pytest test_cluster_ps.py -x -k "TestAntiAffinity" --log-cli-level=INFO
-            status_ps4=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
-            status_ps5=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.20") | .partitions | length == 1')
+            status_ps4=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .server.p_ids | length == 1')
+            status_ps5=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.20") | .server.p_ids | length == 1')
             if [ "$status_ps4" == "true" ] && [ "$status_ps5" == "true" ]; then
               echo "ps4 and ps5 partitions num should not be 1 together."
               exit 1
