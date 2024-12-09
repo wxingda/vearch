@@ -332,6 +332,7 @@ jobs:
         while [ $anti_affinity -lt 4 ]; do
           echo "replica_anti_affinity_strategy = $anti_affinity"
           sed -i "s/replica_anti_affinity_strategy = 0/replica_anti_affinity_strategy = $anti_affinity/" cloud/config_cluster.toml
+          cat cloud/config_cluster.toml
 
           for ps in ps1 ps2 ps3 ps4 ps5; do
             docker-compose -f cloud/docker-compose.yml restart $ps
@@ -347,6 +348,7 @@ jobs:
           retry=0
           while [ $retry -lt $max_retries ]; do
             pytest test_cluster_ps.py -x -k "TestAntiAffinity" --log-cli-level=INFO
+            servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
             status_ps4=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .server.p_ids | length == 1')
             status_ps5=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.20") | .server.p_ids | length == 1')
             if [ "$status_ps4" == "true" ] && [ "$status_ps5" == "true" ]; then
