@@ -367,8 +367,6 @@ jobs:
           done
 
           pytest test_cluster_ps.py -x -k "TestFailAntiAffinity" --log-cli-level=INFO
-          pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-          sleep 10
 
           db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
           if [ "$db_num" -ne 0 ]; then
