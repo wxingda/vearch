@@ -340,7 +340,6 @@ jobs:
 
           for ps in ps1 ps2 ps3 ps4 ps5; do
             docker-compose -f cloud/docker-compose.yml restart $ps
-            docker exec -it vearch-$ps env
           done
 
           sleep 20
