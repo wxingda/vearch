@@ -8,5 +8,4 @@ if [ -z "$1" ]; then
     echo "start args is empty"
 fi
 
-export LD_LIBRARY_PATH=/vearch/lib/:$LD_LIBRARY_PATH
 /vearch/bin/vearch -conf /vearch/config.toml $1

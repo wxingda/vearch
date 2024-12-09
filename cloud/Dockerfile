@@ -1,7 +1,7 @@
 FROM vearch/vearch-dev-env:latest AS builder
 
 ENV ROCKSDB_HOME=/env/app/rocksdb_install
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROCKSDB_HOME/lib
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROCKSDB_HOME/lib:/vearch/lib
 
 WORKDIR /vearch
 COPY . .
