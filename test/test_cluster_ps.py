@@ -547,3 +547,4 @@ class TestFailAntiAffinity:
     def test_prepare_data(self, embedding_size, index_type):
         response = create_space(1, 5, embedding_size, index_type)
         assert response.json()["code"] != 0
+        vearch_utils.drop_db(vearch_utils.router_url, vearch_utils.db_name)
