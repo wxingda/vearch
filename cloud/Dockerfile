@@ -30,5 +30,5 @@ COPY --from=builder /lib64/libopenblas.so /lib64/
 ENV LD_LIBRARY_PATH=/vearch/lib/:$LD_LIBRARY_PATH
 RUN microdnf install -y dnf && dnf --enablerepo=crb install -y libgomp lapack libzstd tbb cronie procps
 
-ENTRYPOINT ["/bin/bash", "-c", "/vearch/bin/vearch -conf /vearch/config.toml"]
+ENTRYPOINT ["/vearch/bin/vearch", "-conf", "/vearch/config.toml"]
 CMD ["all"]
