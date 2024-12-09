@@ -530,7 +530,7 @@ class TestAntiAffinity:
     def test_prepare_data(self, embedding_size, index_type):
         create_space(1, 4, embedding_size, index_type)
 
-class TestAntiAffinityFail:
+class TestFailAntiAffinity:
     def setup_class(self):
         pass
 
