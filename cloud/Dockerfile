@@ -1,7 +1,7 @@
 FROM vearch/vearch-dev-env:latest AS builder
 
 ENV ROCKSDB_HOME=/env/app/rocksdb_install
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROCKSDB_HOME/lib:/vearch/lib
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROCKSDB_HOME/lib
 
 WORKDIR /vearch
 COPY . .
@@ -27,9 +27,7 @@ COPY --from=builder /vearch/build/bin /vearch/bin/
 COPY --from=builder /vearch/build/lib /vearch/lib/
 COPY --from=builder /lib64/libopenblas.so /lib64/
 
-COPY cloud/start.sh /vearch/start.sh
+ENV LD_LIBRARY_PATH=/vearch/lib/:$LD_LIBRARY_PATH
+RUN microdnf install -y dnf && dnf --enablerepo=crb install -y libgomp lapack libzstd tbb cronie procps
 
-RUN chmod +x /vearch/start.sh && \
-    microdnf install -y dnf && dnf --enablerepo=crb install -y libgomp lapack libzstd tbb cronie procps
-
-ENTRYPOINT ["/vearch/start.sh"]
+ENTRYPOINT ["/bin/bash", "-c", "/vearch/bin/vearch -conf /vearch/config.toml $1"]
