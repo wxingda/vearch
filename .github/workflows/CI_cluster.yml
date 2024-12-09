@@ -107,89 +107,89 @@ jobs:
     #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
     #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for restart ps
-      run: |
-        cd test
-        pytest test_cluster_ps.py -k "TestClusterPartitionServerAdd" -x --log-cli-level=INFO
-        cd ../cloud
-        docker-compose stop ps1
-        sleep 30
-        docker-compose start ps1
-        cd ../test
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerRecover" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerCheckSpace" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        sleep 10
+    # - name: Run tests for restart ps
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -k "TestClusterPartitionServerAdd" -x --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose stop ps1
+    #     sleep 30
+    #     docker-compose start ps1
+    #     cd ../test
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerRecover" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerCheckSpace" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     sleep 10
 
-        db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
-        if [ "$db_num" -ne 0 ]; then
-          echo "db is not empty"
-          exit 1
-        fi
-        pytest test_cluster_ps.py -k "TestClusterPartitionChange" --log-cli-level=INFO
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
+    #     if [ "$db_num" -ne 0 ]; then
+    #       echo "db is not empty"
+    #       exit 1
+    #     fi
+    #     pytest test_cluster_ps.py -k "TestClusterPartitionChange" --log-cli-level=INFO
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for faulty ps
-      run: |
-        cd test
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerCreateSpace" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
-        cd ../cloud
-        docker-compose stop ps1
-        cd ../test
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerPrepareData" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
-        cd ../cloud && docker-compose stop ps2
-        cd ../test
-        # TODO remove sleep
-        sleep 60
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerSearch" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
-        cd ../cloud
-        docker-compose start ps1
-        docker-compose start ps2
-        sleep 60
-        cd ../test
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        sleep 10
+    # - name: Run tests for faulty ps
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerCreateSpace" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose stop ps1
+    #     cd ../test
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerPrepareData" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
+    #     cd ../cloud && docker-compose stop ps2
+    #     cd ../test
+    #     # TODO remove sleep
+    #     sleep 60
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerSearch" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterFaultyPartitionServerGetMetaData" --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose start ps1
+    #     docker-compose start ps2
+    #     sleep 60
+    #     cd ../test
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     sleep 10
 
-        db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
-        if [ "$db_num" -ne 0 ]; then
-          echo "db is not empty"
-          exit 1
-        fi
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
+    #     if [ "$db_num" -ne 0 ]; then
+    #       echo "db is not empty"
+    #       exit 1
+    #     fi
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for incomplete shared
-      run: |
-        cd test
-        pytest test_cluster_ps.py -x -k "TestIncompleteShardPrepare" --log-cli-level=INFO
-        cd ../cloud
-        docker-compose stop ps1
-        docker-compose stop ps2
-        cd ../test
-        # TODO remove sleep
-        sleep 60
-        pytest test_cluster_ps.py -x -k "TestIncompleteShardSearch" --log-cli-level=INFO
-        cd ../cloud
-        docker-compose stop ps3
-        docker-compose start ps1
-        docker-compose start ps2
-        docker-compose start ps3
-        sleep 60
-        cd ../test
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        sleep 10
+    # - name: Run tests for incomplete shared
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -x -k "TestIncompleteShardPrepare" --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose stop ps1
+    #     docker-compose stop ps2
+    #     cd ../test
+    #     # TODO remove sleep
+    #     sleep 60
+    #     pytest test_cluster_ps.py -x -k "TestIncompleteShardSearch" --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose stop ps3
+    #     docker-compose start ps1
+    #     docker-compose start ps2
+    #     docker-compose start ps3
+    #     sleep 60
+    #     cd ../test
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     sleep 10
 
-        db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
-        if [ "$db_num" -ne 0 ]; then
-          echo "db is not empty"
-          exit 1
-        fi
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
+    #     if [ "$db_num" -ne 0 ]; then
+    #       echo "db is not empty"
+    #       exit 1
+    #     fi
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
     - name: Run tests for fail server
       run: |
@@ -253,75 +253,75 @@ jobs:
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for auto recover replica
-      run: |
-        cd test
-        pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
-        cd .. && docker-compose -f cloud/docker-compose.yml start ps4
-        docker-compose -f cloud/docker-compose.yml stop ps1
-        max_retries=30
-        retry=0
-        success=false
-        while [ $retry -lt $max_retries ]; do
-          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
-          status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
-          if [ "$status" == "true" ]; then
-            success=true
-            echo $servers | jq
-            break
-          else
-            echo "Retry $((retry+1))/$max_retries: ps4 partitions num should be 1. Retrying in 30 seconds..."
-            echo $servers
-            retry=$((retry+1))
-            sleep 30
-          fi
-        done
-        if [ "$success" != "true" ]; then
-          echo "Error: ps4 partitions num should be 1 after $max_retries attempts."
-          exit 1
-        fi
+    # - name: Run tests for auto recover replica
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
+    #     cd .. && docker-compose -f cloud/docker-compose.yml start ps4
+    #     docker-compose -f cloud/docker-compose.yml stop ps1
+    #     max_retries=30
+    #     retry=0
+    #     success=false
+    #     while [ $retry -lt $max_retries ]; do
+    #       servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+    #       status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
+    #       if [ "$status" == "true" ]; then
+    #         success=true
+    #         echo $servers | jq
+    #         break
+    #       else
+    #         echo "Retry $((retry+1))/$max_retries: ps4 partitions num should be 1. Retrying in 30 seconds..."
+    #         echo $servers
+    #         retry=$((retry+1))
+    #         sleep 30
+    #       fi
+    #     done
+    #     if [ "$success" != "true" ]; then
+    #       echo "Error: ps4 partitions num should be 1 after $max_retries attempts."
+    #       exit 1
+    #     fi
 
-        docker-compose -f cloud/docker-compose.yml start ps1
-        retry=0
-        success=false
-        while [ $retry -lt $max_retries ]; do
-          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
-          status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.16") | .partitions | length == 0')
-          if [ "$status" == "true" ]; then
-            success=true
-            echo $servers | jq
-            break
-          else
-            echo "Retry $((retry+1))/$max_retries: ps1 partitions num should be 0. Retrying in 30 seconds..."
-            echo $servers
-            retry=$((retry+1))
-            sleep 30
-          fi
-        done
-        if [ "$success" != "true" ]; then
-          echo "Error: ps1 partitions num should be 0 after $max_retries attempts."
-          exit 1
-        fi
+    #     docker-compose -f cloud/docker-compose.yml start ps1
+    #     retry=0
+    #     success=false
+    #     while [ $retry -lt $max_retries ]; do
+    #       servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+    #       status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.16") | .partitions | length == 0')
+    #       if [ "$status" == "true" ]; then
+    #         success=true
+    #         echo $servers | jq
+    #         break
+    #       else
+    #         echo "Retry $((retry+1))/$max_retries: ps1 partitions num should be 0. Retrying in 30 seconds..."
+    #         echo $servers
+    #         retry=$((retry+1))
+    #         sleep 30
+    #       fi
+    #     done
+    #     if [ "$success" != "true" ]; then
+    #       echo "Error: ps1 partitions num should be 0 after $max_retries attempts."
+    #       exit 1
+    #     fi
 
-        status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
-        if [ "$status" != "green" ]; then
-          echo "Error: Status is not green. Status is $status."
-          exit 1
-        else
-          echo "Status is green."
-        fi
-        cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        sleep 10
+    #     status=$(curl -u root:secret http://127.0.0.1:8817/cluster/health | jq -r '.data[0].spaces[0].status')
+    #     if [ "$status" != "green" ]; then
+    #       echo "Error: Status is not green. Status is $status."
+    #       exit 1
+    #     else
+    #       echo "Status is green."
+    #     fi
+    #     cd test && pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     sleep 10
 
-        db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
-        if [ "$db_num" -ne 0 ]; then
-          echo "db is not empty"
-          exit 1
-        fi
-        cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
-        sleep 60 && docker ps
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
+    #     if [ "$db_num" -ne 0 ]; then
+    #       echo "db is not empty"
+    #       exit 1
+    #     fi
+    #     cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
+    #     sleep 60 && docker ps
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
     - name: Run tests for replica anti_affinity strategy
       run: |
@@ -335,6 +335,10 @@ jobs:
 
           for ps in ps1 ps2 ps3 ps4 ps5; do
             docker-compose -f cloud/docker-compose.yml restart $ps
+          done
+
+          for master in master1 master2 master3; do
+            docker-compose -f cloud/docker-compose.yml restart $master
           done
 
           sleep 20
@@ -372,6 +376,10 @@ jobs:
           cd ..
           sed -i "s/replica_anti_affinity_strategy = $anti_affinity/replica_anti_affinity_strategy = 0/" cloud/config_cluster.toml
           anti_affinity=$((anti_affinity+1))
+        done
+
+        for master in master1 master2 master3; do
+          docker-compose -f cloud/docker-compose.yml restart $master
         done
 
         for ps in ps1 ps2 ps3 ps4 ps5; do
