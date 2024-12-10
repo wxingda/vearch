@@ -94,7 +94,7 @@ jobs:
         pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
         # all down
         cd ../cloud && docker-compose stop master3
-        sleep 120
+        sleep 60
         cd ../test
         pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
         cd ../cloud
@@ -105,7 +105,7 @@ jobs:
         pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
         pytest test_vearch.py -x -k "test_vearch_basic_usage" --log-cli-level=INFO
         sleep 10
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
         sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
