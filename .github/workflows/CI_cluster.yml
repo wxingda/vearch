@@ -130,6 +130,7 @@ jobs:
           exit 1
         fi
         pytest test_cluster_ps.py -k "TestClusterPartitionChange" --log-cli-level=INFO
+        sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
@@ -162,6 +163,8 @@ jobs:
           echo "db is not empty"
           exit 1
         fi
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+        sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
@@ -191,6 +194,8 @@ jobs:
           echo "db is not empty"
           exit 1
         fi
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+        sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
@@ -253,6 +258,8 @@ jobs:
         fi
         cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
         sleep 30 && docker ps
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+        sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
@@ -323,6 +330,8 @@ jobs:
         fi
         cd .. && docker-compose -f cloud/docker-compose.yml stop ps4
         sleep 60 && docker ps
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+        sleep 10
         curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
         curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
