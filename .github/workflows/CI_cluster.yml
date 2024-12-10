@@ -356,7 +356,7 @@ jobs:
 
           sleep 20
           cd test
-          max_retries=20
+          max_retries=10
           retry=0
           while [ $retry -lt $max_retries ]; do
             pytest test_cluster_ps.py -x -k "TestAntiAffinity" --log-cli-level=INFO
