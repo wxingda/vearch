@@ -401,6 +401,12 @@ jobs:
           docker-compose -f cloud/docker-compose.yml restart $ps
         done
 
+        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+        sleep 10
+
+        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+
         docker-compose -f cloud/docker-compose.yml stop ps4
         docker-compose -f cloud/docker-compose.yml stop ps5
   
