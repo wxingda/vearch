@@ -135,7 +135,11 @@ func TimeoutMiddleware(defaultTimeout time.Duration) gin.HandlerFunc {
 			if t, err := strconv.Atoi(timeoutStr); err == nil {
 				timeout = time.Duration(t) * time.Millisecond
 			} else {
-				timeout = defaultTimeout
+				msg := fmt.Sprintf("timeout[%s] param parse to int failed, err: %s", timeout, err.Error())
+				log.Error(msg)
+				response.New(c).JsonError(errors.NewErrBadRequest(fmt.Errorf(msg)))
+				c.Abort()
+				return
 			}
 		} else {
 			timeout = defaultTimeout
