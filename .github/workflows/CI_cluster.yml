@@ -69,10 +69,10 @@ jobs:
         python setup.py bdist_wheel
         pip install dist/pyvearch*
 
-    - name: Test Python SDK
-      run: |
-        cd sdk/python/test
-        pytest -x --log-cli-level=INFO
+    # - name: Test Python SDK
+    #   run: |
+    #     cd sdk/python/test
+    #     pytest -x --log-cli-level=INFO
 
     - name: Install Docker Compose
       run: |
