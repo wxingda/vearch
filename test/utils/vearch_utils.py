@@ -1020,7 +1020,7 @@ def query_interface(
 
 
 def process_delete_data(items):
-    url = router_url + "/document/delete"
+    url = router_url + "/document/delete?timeout=30000"
     data = {}
 
     index = items[0]
