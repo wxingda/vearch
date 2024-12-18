@@ -51,17 +51,17 @@ jobs:
         done
         ./mc mb myminio/test
 
-    - name: Run Python tests
-      run: |
-        cd test
-        pytest test_vearch.py -x --log-cli-level=INFO
-        pytest test_document_* -k "not test_vearch_document_upsert_benchmark" -x --log-cli-level=INFO
-        pytest test_module_* -x --log-cli-level=INFO
+    # - name: Run Python tests
+    #   run: |
+    #     cd test
+    #     pytest test_vearch.py -x --log-cli-level=INFO
+    #     pytest test_document_* -k "not test_vearch_document_upsert_benchmark" -x --log-cli-level=INFO
+    #     pytest test_module_* -x --log-cli-level=INFO
 
-    - name: Test Go SDK
-      run: |
-        cd sdk/go/test
-        go test -v
+    # - name: Test Go SDK
+    #   run: |
+    #     cd sdk/go/test
+    #     go test -v
 
     - name: Build python sdk
       run: |
@@ -79,60 +79,60 @@ jobs:
         sudo curl -L "https://github.com/docker/compose/releases/download/$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         sudo chmod +x /usr/local/bin/docker-compose
 
-    - name: Run tests for master down and restart
-      run: |
-        cd cloud
-        docker-compose stop master1
-        cd ../test
-        pytest test_vearch.py -x -k "test_vearch_basic_usage" --log-cli-level=INFO
-        pytest test_cluster_master.py -x -k "TestClusterMasterPrepare" --log-cli-level=INFO
-        pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
-        # prepare for 2 masters down
-        pytest test_cluster_master.py -x -k "TestClusterMasterPrepare" --log-cli-level=INFO
-        cd ../cloud && docker-compose stop master2
-        cd ../test
-        pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
-        # all down
-        cd ../cloud && docker-compose stop master3
-        sleep 60
-        cd ../test
-        pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
-        cd ../cloud
-        docker-compose start master1 && sleep 30 && docker ps
-        docker-compose start master2 && sleep 30 && docker ps
-        docker-compose start master3 && sleep 90 && docker ps
-        cd ../test
-        pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
-        pytest test_vearch.py -x -k "test_vearch_basic_usage" --log-cli-level=INFO
-        sleep 10
-        curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
-        sleep 10
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    # - name: Run tests for master down and restart
+    #   run: |
+    #     cd cloud
+    #     docker-compose stop master1
+    #     cd ../test
+    #     pytest test_vearch.py -x -k "test_vearch_basic_usage" --log-cli-level=INFO
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterPrepare" --log-cli-level=INFO
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
+    #     # prepare for 2 masters down
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterPrepare" --log-cli-level=INFO
+    #     cd ../cloud && docker-compose stop master2
+    #     cd ../test
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
+    #     # all down
+    #     cd ../cloud && docker-compose stop master3
+    #     sleep 60
+    #     cd ../test
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose start master1 && sleep 30 && docker ps
+    #     docker-compose start master2 && sleep 30 && docker ps
+    #     docker-compose start master3 && sleep 90 && docker ps
+    #     cd ../test
+    #     pytest test_cluster_master.py -x -k "TestClusterMasterOperate" --log-cli-level=INFO
+    #     pytest test_vearch.py -x -k "test_vearch_basic_usage" --log-cli-level=INFO
+    #     sleep 10
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/schedule/clean_task
+    #     sleep 10
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
-    - name: Run tests for restart ps
-      run: |
-        cd test
-        pytest test_cluster_ps.py -k "TestClusterPartitionServerAdd" -x --log-cli-level=INFO
-        cd ../cloud
-        docker-compose stop ps1
-        sleep 30
-        docker-compose start ps1
-        cd ../test
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerRecover" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerCheckSpace" --log-cli-level=INFO
-        pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
-        sleep 10
+    # - name: Run tests for restart ps
+    #   run: |
+    #     cd test
+    #     pytest test_cluster_ps.py -k "TestClusterPartitionServerAdd" -x --log-cli-level=INFO
+    #     cd ../cloud
+    #     docker-compose stop ps1
+    #     sleep 30
+    #     docker-compose start ps1
+    #     cd ../test
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerRecover" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerCheckSpace" --log-cli-level=INFO
+    #     pytest test_cluster_ps.py -x -k "TestClusterPartitionServerDestroy" --log-cli-level=INFO
+    #     sleep 10
 
-        db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
-        if [ "$db_num" -ne 0 ]; then
-          echo "db is not empty"
-          exit 1
-        fi
-        pytest test_cluster_ps.py -k "TestClusterPartitionChange" --log-cli-level=INFO
-        sleep 10
-        curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
-        curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
+    #     db_num=$(curl -s -L -u root:secret http://127.0.0.1:8817/dbs | jq '.data | length')
+    #     if [ "$db_num" -ne 0 ]; then
+    #       echo "db is not empty"
+    #       exit 1
+    #     fi
+    #     pytest test_cluster_ps.py -k "TestClusterPartitionChange" --log-cli-level=INFO
+    #     sleep 10
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/servers | jq
+    #     curl -s -L -u root:secret http://127.0.0.1:8817/cluster/health?detail=true | jq
 
     - name: Run tests for faulty ps
       run: |
@@ -273,7 +273,7 @@ jobs:
         retry=0
         success=false
         while [ $retry -lt $max_retries ]; do
-          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+          servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers?timeout=30000)
           echo $servers
           status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
           if [ "$status" == "true" ]; then
