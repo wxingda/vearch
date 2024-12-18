@@ -193,14 +193,19 @@ def process_add_embedding_size_data(items):
     return rs
 
 
-def add_embedding_size(db_name, space_name, total, batch_size, embedding_size):
-    pool = ThreadPool()
+def add_embedding_size(db_name, space_name, total, batch_size, embedding_size, max_workers=10):
+    pool = ThreadPool(processes=max_workers)
     total_data = []
     for i in range(total):
         total_data.append((db_name, space_name, i, batch_size, embedding_size))
-    results = pool.map(process_add_embedding_size_data, total_data)
+
+    results = []
+    for i, result in enumerate(pool.imap(process_add_embedding_size_data, total_data)):
+        results.append(result)
+
     pool.close()
     pool.join()
+    return results
 
 
 def process_add_date_data(items):
