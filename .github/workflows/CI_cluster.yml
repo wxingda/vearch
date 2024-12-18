@@ -215,7 +215,7 @@ jobs:
         else
           echo "Status is yellow."
         fi
-        router_status=$(curl -u root:secret http://172.16.238.14:9001 || true)
+        router_status=$(curl -s -u root:secret http://172.16.238.14:9001 || true)
         if [ $? != 7 ]; then
           echo "Router status is not OK. Status is $router_status."
         else
