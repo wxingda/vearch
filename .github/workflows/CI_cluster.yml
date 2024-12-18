@@ -269,6 +269,7 @@ jobs:
         pytest test_cluster_ps.py -x -k "TestFailServerPrepare" --log-cli-level=INFO
         cd .. && docker-compose -f cloud/docker-compose.yml start ps4
         docker-compose -f cloud/docker-compose.yml stop ps1
+        sleep 30
         max_retries=30
         retry=0
         success=false

@@ -190,8 +190,8 @@ func RecoveryMiddleware() gin.HandlerFunc {
 
 func ExportToClusterHandler(router *gin.Engine, masterService *masterService, server *Server) {
 	c := &clusterAPI{router: router, masterService: masterService, server: server}
-	router.Use(TimeoutMiddleware(10 * time.Second))
 	router.Use(RecoveryMiddleware())
+	router.Use(TimeoutMiddleware(10 * time.Second))
 
 	var groupAuth *gin.RouterGroup
 	var group *gin.RouterGroup = router.Group("")
