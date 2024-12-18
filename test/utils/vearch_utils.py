@@ -188,7 +188,7 @@ def process_add_embedding_size_data(items):
         data["documents"].append(param_dict)
 
     rs = requests.post(url, auth=(username, password), json=data)
-    logger.info(rs.text)
+    logger.debug(rs.text)
     assert rs.json()["code"] >= 0
     return rs
 
