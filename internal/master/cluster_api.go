@@ -454,7 +454,7 @@ func (ca *clusterAPI) modifyDB(c *gin.Context) {
 		response.New(c).JsonError(errors.NewErrBadRequest(err))
 		return
 	}
-	if db, err := ca.masterService.updateDBIpList(c, dbModify); err != nil {
+	if db, err := ca.masterService.updateDBIpList(c.Request.Context(), dbModify); err != nil {
 		response.New(c).JsonError(errors.NewErrInternal(err))
 	} else {
 		response.New(c).JsonSuccess(db)
@@ -1211,7 +1211,7 @@ func (ca *clusterAPI) partitionList(c *gin.Context) {
 
 // list fail servers
 func (cluster *clusterAPI) FailServerList(c *gin.Context) {
-	failServers, err := cluster.masterService.Master().QueryAllFailServer(c)
+	failServers, err := cluster.masterService.Master().QueryAllFailServer(c.Request.Context())
 
 	if err != nil {
 		response.New(c).JsonError(errors.NewErrNotFound(err))
@@ -1232,7 +1232,7 @@ func (cluster *clusterAPI) FailServerClear(c *gin.Context) {
 		response.New(c).JsonError(errors.NewErrBadRequest(fmt.Errorf("nodeId err")))
 		return
 	}
-	err = cluster.masterService.Master().DeleteFailServerByNodeID(c, id)
+	err = cluster.masterService.Master().DeleteFailServerByNodeID(c.Request.Context(), id)
 	if err != nil {
 		response.New(c).JsonError(errors.NewErrNotFound(err))
 		return
@@ -1265,11 +1265,11 @@ func (cluster *clusterAPI) RemoveServerMeta(c *gin.Context) {
 	// get failServer
 	var failServer *entity.FailServer
 	if nodeID > 0 {
-		failServer = cluster.masterService.Master().QueryFailServerByNodeID(c, nodeID)
+		failServer = cluster.masterService.Master().QueryFailServerByNodeID(c.Request.Context(), nodeID)
 	}
 	// if nodeId can't get server info
 	if failServer == nil && ipAdd != "" {
-		failServer = cluster.masterService.Master().QueryServerByIPAddr(c, ipAdd)
+		failServer = cluster.masterService.Master().QueryServerByIPAddr(c.Request.Context(), ipAdd)
 	}
 	// get all partition
 	if failServer != nil && failServer.Node != nil {
@@ -1280,7 +1280,7 @@ func (cluster *clusterAPI) RemoveServerMeta(c *gin.Context) {
 			cm.PartitionID = pid
 			cm.Method = proto.ConfRemoveNode
 			log.Debug("begin ChangeMember %+v", cm)
-			err := cluster.masterService.ChangeMember(c, cm)
+			err := cluster.masterService.ChangeMember(c.Request.Context(), cm)
 			if err != nil {
 				log.Error("ChangePartitionMember [%+v] err is %s", cm, err.Error())
 				response.New(c).JsonError(errors.NewErrInternal(err))
@@ -1303,7 +1303,7 @@ func (cluster *clusterAPI) RecoverFailServer(c *gin.Context) {
 	}
 	rsStr := vjson.ToJsonString(rs)
 	log.Info("RecoverFailServer is %s,", rsStr)
-	if err := cluster.masterService.RecoverFailServer(c, rs); err != nil {
+	if err := cluster.masterService.RecoverFailServer(c.Request.Context(), rs); err != nil {
 		response.New(c).JsonError(errors.NewErrInternal(fmt.Errorf("%s failed recover, err is %v", rsStr, err)))
 	} else {
 		response.New(c).JsonSuccess(fmt.Sprintf("%s success recover!", rsStr))
@@ -1327,7 +1327,7 @@ func (cluster *clusterAPI) ChangeReplicas(c *gin.Context) {
 	if dbModify.DbName == "" || dbModify.SpaceName == "" {
 		response.New(c).JsonError(errors.NewErrBadRequest(fmt.Errorf("dbModify info incorrect [%s]", dbStr)))
 	}
-	if err := cluster.masterService.ChangeReplica(c, dbModify); err != nil {
+	if err := cluster.masterService.ChangeReplica(c.Request.Context(), dbModify); err != nil {
 		response.New(c).JsonError(errors.NewErrInternal(fmt.Errorf("[%s] failed ChangeReplicas,err is %v", dbStr, err)))
 	} else {
 		response.New(c).JsonSuccess(fmt.Sprintf("[%s] success ChangeReplicas!", dbStr))
