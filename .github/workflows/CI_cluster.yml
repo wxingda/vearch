@@ -274,6 +274,7 @@ jobs:
         success=false
         while [ $retry -lt $max_retries ]; do
           servers=$(curl -s -L -u root:secret http://127.0.0.1:8817/servers)
+          echo $servers
           status=$(echo $servers | jq -r '.data.servers[] | select(.server.ip == "172.16.238.19") | .partitions | length == 1')
           if [ "$status" == "true" ]; then
             success=true
