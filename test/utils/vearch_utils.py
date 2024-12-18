@@ -164,7 +164,7 @@ def add_string_array(
 
 
 def process_add_embedding_size_data(items):
-    url = router_url + "/document/upsert"
+    url = router_url + "/document/upsert?timeout=30000"
     data = {}
     data["documents"] = []
 
