@@ -147,8 +147,6 @@ func TimeoutMiddleware(defaultTimeout time.Duration) gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		type contextKey string
-		ctx = context.WithValue(ctx, contextKey("timeout"), timeout.String())
 		c.Request = c.Request.WithContext(ctx)
 		done := make(chan struct{})
 

@@ -110,9 +110,10 @@ func (handler *UnaryHandler) Execute(ctx context.Context, req *vearchpb.Partitio
 		span := opentracing.StartSpan("server-execute", ext.RPCServerOption(spanCtx))
 		defer span.Finish()
 	}
-	timeout := ctx.Value("timeout").(int)
-	if timeout <= 0 {
-		timeout = handler.server.rpcTimeOut * 1000
+	timeout := handler.server.rpcTimeOut * 1000
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = int(time.Until(deadline).Seconds() * 1000)
 	}
 	if s, ok := reqMap[string(entity.RPC_TIME_OUT)]; ok {
 		if t, ok := strconv.Atoi(s); ok == nil {
