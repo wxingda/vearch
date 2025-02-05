@@ -195,7 +195,7 @@ class Node {
       return AddDense(val);
     } else {
       if (offset > 100000) {
-        if (density > 0.1) {
+        if (density > 0.2) {
           ConvertToDense();
           return AddDense(val);
         }
@@ -499,8 +499,10 @@ int64_t FieldRangeIndex::Search(const std::string &lower,
                 key_l.data(), lower_len);
   ReverseEndian(reinterpret_cast<const unsigned char *>(upper.data()),
                 key_u.data(), upper_len);
-  auto it_lower = main_btree_.lower_bound(lower);
-  auto it_upper = main_btree_.upper_bound(upper);
+  auto it_lower =
+      main_btree_.lower_bound(std::string(key_l.begin(), key_l.end()));
+  auto it_upper =
+      main_btree_.upper_bound(std::string(key_u.begin(), key_u.end()));
 
   std::vector<Node *> lists;
 
