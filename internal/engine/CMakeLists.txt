@@ -75,6 +75,7 @@ set(COMMON_LIBRARIES
     -ltbb
     -lzstd
     -lprotobuf
+    -labsl_hash
 )
 
 find_package(MKL)

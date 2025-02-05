@@ -82,6 +82,16 @@ function build_thirdparty() {
     ./configure && make -j4 && make install
     popd
   fi
+
+  if [[ ! -f "/usr/local/lib64/libabsl_hash.a" ]]; then
+    wget -q https://github.com/abseil/abseil-cpp/releases/download/20250127.0/abseil-cpp-20250127.0.tar.gz
+    tar xf abseil-cpp-20250127.0.tar.gz
+    pushd abseil-cpp-20250127.0
+    mkdir build && pushd build
+    cmake ../ -B ./ -DCMAKE_CXX_STANDARD=17
+    make -j4 && make install
+    popd && popd
+  fi
 }
 
 function build_engine() {

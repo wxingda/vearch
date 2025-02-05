@@ -25,6 +25,7 @@
 #include <sstream>
 #include <typeinfo>
 
+#include "absl/container/btree_map.h"
 #include "threadskv8.h"
 #include "util/bitmap.h"
 #include "util/log.h"
@@ -359,7 +360,7 @@ class FieldRangeIndex {
   long ScanMemory(long &dense, long &sparse);
 
  private:
-  BtMgr *main_mgr_;
+  absl::btree_map<std::string, Node *> main_btree_;
   bool is_numeric_;
   enum DataType data_type_;
   char *kDelim_;
@@ -373,13 +374,6 @@ FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
                                  enum DataType field_type,
                                  BTreeParameters &bt_param, std::string &name)
     : path_(path), name_(name) {
-  std::string main_file =
-      path + std::string("/main_") + std::to_string(field_idx) + ".dis";
-  remove(main_file.c_str());
-
-  main_mgr_ = bt_mgr(const_cast<char *>(main_file.c_str()), bt_param.mainbits,
-                     bt_param.poolsize);
-
   if (field_type == DataType::STRING || field_type == DataType::STRINGARRAY) {
     is_numeric_ = false;
   } else {
@@ -390,40 +384,10 @@ FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
 }
 
 FieldRangeIndex::~FieldRangeIndex() {
-  BtDb *bt = bt_open(main_mgr_);
-  BtPageSet set[1];
-  uid next, page_no = LEAF_page;  // start on first page of leaves
-
-  do {
-    if ((set->latch = bt_pinlatch(bt, page_no, 1))) {
-      set->page = bt_mappage(bt, set->latch);
-    } else {
-      LOG(ERROR) << "unable to obtain latch";
-      return;
-    }
-    bt_lockpage(bt, BtLockRead, set->latch);
-    next = bt_getid(set->page->right);
-
-    for (uint slot = 1; slot < set->page->cnt; slot++) {
-      if (!slotptr(set->page, slot)->dead) {
-        BtVal *val = valptr(set->page, slot);
-        Node *p_node = nullptr;
-        memcpy(&p_node, val->value, sizeof(Node *));
-        delete p_node;
-      }
-    }
-
-    bt_unlockpage(bt, BtLockRead, set->latch);
-    bt_unpinlatch(set->latch);
-    page_no = next;
-  } while (page_no);
-
-  bt_close(bt);
-
-  if (main_mgr_) {
-    bt_mgrclose(main_mgr_);
-    main_mgr_ = nullptr;
+  for (auto &pair : main_btree_) {
+    delete pair.second;
   }
+  main_btree_.clear();
 }
 
 /**
@@ -438,36 +402,23 @@ static int ReverseEndian(const unsigned char *in, unsigned char *out,
 }
 
 int FieldRangeIndex::Add(std::string &key, int64_t value) {
-  BtDb *bt = bt_open(main_mgr_);
   size_t key_len = key.size();
   std::vector<unsigned char> key2(key_len);
 
-  auto InsertToBt = [&](unsigned char *key_to_add, uint key_len) {
-    Node *p_node = nullptr;
-    int ret = bt_findkey(bt, key_to_add, key_len, (unsigned char *)&p_node,
-                         sizeof(Node *));
+  auto InsertToBt = [&](std::string &key) {
+    Node *&p_node = main_btree_[key];
 
-    if (ret < 0) {
-      auto new_node = std::make_unique<Node>();
-      new_node->Add(value);
-      Node *raw_ptr = new_node.get();
-      BTERR bterr =
-          bt_insertkey(bt, key_to_add, key_len, 0,
-                       static_cast<void *>(&raw_ptr), sizeof(Node *), Update);
-      if (bterr) {
-        LOG(ERROR) << "Error " << bt->err;
-        return;
-      }
-      new_node.release();  // successfully inserted, release ownership
-    } else {
-      p_node->Add(value);
+    if (!p_node) {
+      p_node = new Node();
     }
+    p_node->Add(value);
   };
 
   if (is_numeric_) {
     ReverseEndian(reinterpret_cast<const unsigned char *>(key.data()),
                   key2.data(), key_len);
-    InsertToBt(key2.data(), key_len);
+    std::string key2_str(key2.begin(), key2.end());
+    InsertToBt(key2_str);
   } else {
     std::vector<char> key_s(key_len + 1);
     memcpy(key_s.data(), key.c_str(), key_len);
@@ -476,12 +427,12 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
     char *p, *k;
     k = strtok_r(key_s.data(), kDelim_, &p);
     while (k != nullptr) {
-      InsertToBt(reinterpret_cast<unsigned char *>(k), strlen(k));
+      std::string key(k);
+      InsertToBt(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
 
-  bt_close(bt);
   add_num_ += 1;
   if (add_num_ % 10000 == 0) {
     LOG(DEBUG) << "field index [" << name_ << "] add count: " << add_num_;
@@ -490,50 +441,37 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
 }
 
 int FieldRangeIndex::Delete(std::string &key, int64_t value) {
-  BtDb *bt = bt_open(main_mgr_);
   size_t key_len = key.size();
   std::vector<unsigned char> key2(key_len);
-
-  auto DeleteFromBt = [&](unsigned char *key_to_delete, uint key_len) {
-    Node *p_node = nullptr;
-    int ret =
-        bt_findkey(bt, key_to_delete, key_len,
-                   reinterpret_cast<unsigned char *>(&p_node), sizeof(Node *));
-
-    if (ret < 0) {
+  auto DeleteFromBt = [&](std::string &key) {
+    auto it = main_btree_.find(key);
+    if (it == main_btree_.end()) {
       LOG(DEBUG) << "cannot find docid [" << value << "] in range index";
       return;
     }
 
+    Node *p_node = it->second;
     p_node->Delete(value);
-    // if (p_node->Size() == 0) {
-    //   BTERR err1 = bt_deletekey(bt, key_to_delete, key_len, 1);
-    //   if (err1 != BTERR_ok) {
-    //     LOG(ERROR) << "Error deleting key at level 1: %d\n" << err1;
-    //   }
-    //   BTERR err2 = bt_deletekey(bt, key_to_delete, key_len, 0);
-    //   if (err2 != BTERR_ok) {
-    //     LOG(ERROR) << "Error deleting key at level 0: %d\n" << err2;
-    //   }
-    //   delete p_node;
-    // }
+    if (p_node->Size() == 0) {
+      delete p_node;
+      main_btree_.erase(it);
+    }
   };
-
   if (is_numeric_) {
     ReverseEndian(reinterpret_cast<const unsigned char *>(key.data()),
                   key2.data(), key_len);
-    DeleteFromBt(key2.data(), key_len);
+    std::string key2_str(key2.begin(), key2.end());
+    DeleteFromBt(key2_str);
   } else {
     std::string key_copy = key;
     char *p = nullptr;
     char *k = strtok_r(&key_copy[0], kDelim_, &p);
     while (k != nullptr) {
-      DeleteFromBt(reinterpret_cast<unsigned char *>(k), strlen(k));
+      std::string key(k);
+      DeleteFromBt(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
-
-  bt_close(bt);
 
   delete_num_ += 1;
   if (delete_num_ % 10000 == 0) {
@@ -553,7 +491,6 @@ int64_t FieldRangeIndex::Search(const std::string &lower,
 #ifdef DEBUG
   double start = utils::getmillisecs();
 #endif
-  BtDb *bt = bt_open(main_mgr_);
   size_t lower_len = lower.length();
   size_t upper_len = upper.length();
   std::vector<unsigned char> key_l(lower_len);
@@ -562,6 +499,8 @@ int64_t FieldRangeIndex::Search(const std::string &lower,
                 key_l.data(), lower_len);
   ReverseEndian(reinterpret_cast<const unsigned char *>(upper.data()),
                 key_u.data(), upper_len);
+  auto it_lower = main_btree_.lower_bound(lower);
+  auto it_upper = main_btree_.upper_bound(upper);
 
   std::vector<Node *> lists;
 
@@ -569,38 +508,16 @@ int64_t FieldRangeIndex::Search(const std::string &lower,
   int64_t min_aligned = std::numeric_limits<int64_t>::max();
   int64_t max_doc = 0;
   int64_t max_aligned = 0;
-  uint slot = bt_startkey(bt, key_l.data(), lower_len);
-  while (slot) {
-    BtKey *key = bt_key(bt, slot);
-    BtVal *val = bt_val(bt, slot);
 
-    if (key->len == 2) {
-      if (((uint16_t)((unsigned char)key->key[0]) << 8 |
-           (unsigned char)key->key[1]) == 0xFFFF) {
-        LOG(DEBUG) << "met the lastkey " << lower << "-" << upper;
-      }
-      break;
-    }
-
-    if (val->len == 0) {
-      LOG(ERROR) << "value is NULL " << lower << "-" << upper;
-      break;
-    }
-    if (keycmp(key, key_u.data(), upper_len) > 0) {
-      break;
-    }
-    Node *p_node = nullptr;
-    memcpy(&p_node, val->value, sizeof(Node *));
+  for (auto it = it_lower; it != it_upper; ++it) {
+    Node *p_node = it->second;
     lists.push_back(p_node);
 
     min_doc = std::min(min_doc, p_node->Min());
     min_aligned = std::min(min_aligned, p_node->MinAligned());
     max_doc = std::max(max_doc, p_node->Max());
     max_aligned = std::max(max_aligned, p_node->MaxAligned());
-
-    slot = bt_nextkey(bt, slot);
   }
-  bt_close(bt);
 
 #ifdef DEBUG
   double search_bt = utils::getmillisecs();
@@ -683,19 +600,13 @@ int64_t FieldRangeIndex::Search(const std::string &tags,
   for (size_t i = 0; i < items.size(); ++i) {
     nodes[i] = nullptr;
     const std::string &item = items[i];
-    const unsigned char *key_tag =
-        reinterpret_cast<const unsigned char *>(item.data());
 
-    Node *p_node = nullptr;
-    BtDb *bt = bt_open(main_mgr_);
-    int ret =
-        bt_findkey(bt, const_cast<unsigned char *>(key_tag), item.length(),
-                   reinterpret_cast<unsigned char *>(&p_node), sizeof(Node *));
-    bt_close(bt);
-
-    if (ret < 0) {
+    auto it = main_btree_.find(item);
+    if (it == main_btree_.end()) {
       continue;
     }
+
+    Node *p_node = it->second;
     if (p_node == nullptr) {
       LOG(ERROR) << "node is nullptr, key=" << item;
       continue;
@@ -764,12 +675,8 @@ long FieldRangeIndex::ScanMemory(long &dense, long &sparse) {
   dense = 0;
   sparse = 0;
 
-  BtDb *bt = bt_open(main_mgr_);
-  uint slot = bt_startkey(bt, nullptr, 0);
-  while (slot) {
-    BtVal *val = bt_val(bt, slot);
-    Node *p_node = nullptr;
-    memcpy(&p_node, val->value, sizeof(Node *));
+  for (const auto &pair : main_btree_) {
+    Node *p_node = pair.second;
 
     long node_dense = 0;
     long node_sparse = 0;
@@ -777,10 +684,7 @@ long FieldRangeIndex::ScanMemory(long &dense, long &sparse) {
 
     dense += node_dense;
     sparse += node_sparse;
-
-    slot = bt_nextkey(bt, slot);
   }
-  bt_close(bt);
 
   return dense + sparse;
 }
