@@ -27,7 +27,6 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "threadskv8.h"
 #include "util/bitmap.h"
 #include "util/log.h"
 #include "util/utils.h"
@@ -330,16 +329,10 @@ class Node {
   int64_t *data_sparse_;
 };
 
-typedef struct BTreeParameters {
-  uint poolsize;
-  uint mainbits;
-  const char *kDelim;
-} BTreeParameters;
-
 class FieldRangeIndex {
  public:
   FieldRangeIndex(std::string &path, int field_idx, enum DataType field_type,
-                  BTreeParameters &bt_param, std::string &name);
+                  std::string &name);
   ~FieldRangeIndex();
 
   int Add(std::string &key, int64_t value);
@@ -373,8 +366,7 @@ class FieldRangeIndex {
 };
 
 FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
-                                 enum DataType field_type,
-                                 BTreeParameters &bt_param, std::string &name)
+                                 enum DataType field_type, std::string &name)
     : path_(path), name_(name) {
   if (field_type == DataType::STRING || field_type == DataType::STRINGARRAY) {
     is_numeric_ = false;
@@ -382,7 +374,7 @@ FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
     is_numeric_ = true;
   }
   data_type_ = field_type;
-  kDelim_ = const_cast<char *>(bt_param.kDelim);
+  kDelim_ = const_cast<char *>("\001");
 }
 
 FieldRangeIndex::~FieldRangeIndex() {
@@ -444,7 +436,7 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
     k = strtok_r(key_s.data(), kDelim_, &p);
     while (k != nullptr) {
       std::string key(k);
-      InsertToHash(key);
+      InsertToBt(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
@@ -500,7 +492,7 @@ int FieldRangeIndex::Delete(std::string &key, int64_t value) {
     char *k = strtok_r(&key_copy[0], kDelim_, &p);
     while (k != nullptr) {
       std::string key(k);
-      DeleteFromHash(key);
+      DeleteFromBt(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
@@ -635,8 +627,8 @@ int64_t FieldRangeIndex::Search(const std::string &tags,
     nodes[i] = nullptr;
     const std::string &item = items[i];
 
-    auto it = lookup_.find(item);
-    if (it == lookup_.end()) {
+    auto it = main_btree_.find(item);
+    if (it == main_btree_.end()) {
       continue;
     }
 
@@ -1051,13 +1043,8 @@ int64_t MultiFieldsRangeIndex::Intersect(std::vector<RangeQueryResult> &results,
 
 int MultiFieldsRangeIndex::AddField(int field, enum DataType field_type,
                                     std::string &field_name) {
-  BTreeParameters bt_param;
-  bt_param.poolsize = 1024;
-  bt_param.mainbits = 16;
-  bt_param.kDelim = "\001";
-
   FieldRangeIndex *index =
-      new FieldRangeIndex(path_, field, field_type, bt_param, field_name);
+      new FieldRangeIndex(path_, field, field_type, field_name);
   fields_[field] = index;
   return 0;
 }
