@@ -26,7 +26,7 @@
 #include <typeinfo>
 
 #include "absl/container/btree_map.h"
-#include "absl/container/flat_hash_map.h"
+#include "threadskv8.h"
 #include "util/bitmap.h"
 #include "util/log.h"
 #include "util/utils.h"
@@ -329,10 +329,16 @@ class Node {
   int64_t *data_sparse_;
 };
 
+typedef struct BTreeParameters {
+  uint poolsize;
+  uint mainbits;
+  const char *kDelim;
+} BTreeParameters;
+
 class FieldRangeIndex {
  public:
   FieldRangeIndex(std::string &path, int field_idx, enum DataType field_type,
-                  std::string &name);
+                  BTreeParameters &bt_param, std::string &name);
   ~FieldRangeIndex();
 
   int Add(std::string &key, int64_t value);
@@ -355,7 +361,6 @@ class FieldRangeIndex {
 
  private:
   absl::btree_map<std::string, Node *> main_btree_;
-  absl::flat_hash_map<std::string, Node *> lookup_;
   bool is_numeric_;
   enum DataType data_type_;
   char *kDelim_;
@@ -366,7 +371,8 @@ class FieldRangeIndex {
 };
 
 FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
-                                 enum DataType field_type, std::string &name)
+                                 enum DataType field_type,
+                                 BTreeParameters &bt_param, std::string &name)
     : path_(path), name_(name) {
   if (field_type == DataType::STRING || field_type == DataType::STRINGARRAY) {
     is_numeric_ = false;
@@ -374,7 +380,7 @@ FieldRangeIndex::FieldRangeIndex(std::string &path, int field_idx,
     is_numeric_ = true;
   }
   data_type_ = field_type;
-  kDelim_ = const_cast<char *>("\001");
+  kDelim_ = const_cast<char *>(bt_param.kDelim);
 }
 
 FieldRangeIndex::~FieldRangeIndex() {
@@ -382,11 +388,6 @@ FieldRangeIndex::~FieldRangeIndex() {
     delete pair.second;
   }
   main_btree_.clear();
-
-  for (auto &pair : lookup_) {
-    delete pair.second;
-  }
-  lookup_.clear();
 }
 
 /**
@@ -406,15 +407,6 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
 
   auto InsertToBt = [&](std::string &key) {
     Node *&p_node = main_btree_[key];
-
-    if (!p_node) {
-      p_node = new Node();
-    }
-    p_node->Add(value);
-  };
-
-  auto InsertToHash = [&](std::string &key) {
-    Node *&p_node = lookup_[key];
 
     if (!p_node) {
       p_node = new Node();
@@ -465,22 +457,6 @@ int FieldRangeIndex::Delete(std::string &key, int64_t value) {
       main_btree_.erase(it);
     }
   };
-
-  auto DeleteFromHash = [&](std::string &key) {
-    auto it = lookup_.find(key);
-    if (it == lookup_.end()) {
-      LOG(DEBUG) << "cannot find docid [" << value << "] in range index";
-      return;
-    }
-
-    Node *p_node = it->second;
-    p_node->Delete(value);
-    if (p_node->Size() == 0) {
-      delete p_node;
-      lookup_.erase(it);
-    }
-  };
-
   if (is_numeric_) {
     ReverseEndian(reinterpret_cast<const unsigned char *>(key.data()),
                   key2.data(), key_len);
@@ -1043,8 +1019,13 @@ int64_t MultiFieldsRangeIndex::Intersect(std::vector<RangeQueryResult> &results,
 
 int MultiFieldsRangeIndex::AddField(int field, enum DataType field_type,
                                     std::string &field_name) {
+  BTreeParameters bt_param;
+  bt_param.poolsize = 1024;
+  bt_param.mainbits = 16;
+  bt_param.kDelim = "\001";
+
   FieldRangeIndex *index =
-      new FieldRangeIndex(path_, field, field_type, field_name);
+      new FieldRangeIndex(path_, field, field_type, bt_param, field_name);
   fields_[field] = index;
   return 0;
 }
