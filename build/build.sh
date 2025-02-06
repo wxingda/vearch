@@ -88,7 +88,7 @@ function build_thirdparty() {
     tar xf abseil-cpp-20250127.0.tar.gz
     pushd abseil-cpp-20250127.0
     mkdir build && pushd build
-    cmake ../ -B ./ -DCMAKE_CXX_STANDARD=17
+    cmake ../ -B ./ -DCMAKE_CXX_STANDARD=17 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
     make -j4 && make install
     popd && popd
   fi

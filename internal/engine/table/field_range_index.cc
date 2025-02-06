@@ -26,6 +26,7 @@
 #include <typeinfo>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "threadskv8.h"
 #include "util/bitmap.h"
 #include "util/log.h"
@@ -195,7 +196,7 @@ class Node {
       return AddDense(val);
     } else {
       if (offset > 100000) {
-        if (density > 0.2) {
+        if (density > 0.1) {
           ConvertToDense();
           return AddDense(val);
         }
@@ -361,6 +362,7 @@ class FieldRangeIndex {
 
  private:
   absl::btree_map<std::string, Node *> main_btree_;
+  absl::flat_hash_map<std::string, Node *> lookup_;
   bool is_numeric_;
   enum DataType data_type_;
   char *kDelim_;
@@ -388,6 +390,11 @@ FieldRangeIndex::~FieldRangeIndex() {
     delete pair.second;
   }
   main_btree_.clear();
+
+  for (auto &pair : lookup_) {
+    delete pair.second;
+  }
+  lookup_.clear();
 }
 
 /**
@@ -414,6 +421,15 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
     p_node->Add(value);
   };
 
+  auto InsertToHash = [&](std::string &key) {
+    Node *&p_node = lookup_[key];
+
+    if (!p_node) {
+      p_node = new Node();
+    }
+    p_node->Add(value);
+  };
+
   if (is_numeric_) {
     ReverseEndian(reinterpret_cast<const unsigned char *>(key.data()),
                   key2.data(), key_len);
@@ -428,7 +444,7 @@ int FieldRangeIndex::Add(std::string &key, int64_t value) {
     k = strtok_r(key_s.data(), kDelim_, &p);
     while (k != nullptr) {
       std::string key(k);
-      InsertToBt(key);
+      InsertToHash(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
@@ -457,6 +473,22 @@ int FieldRangeIndex::Delete(std::string &key, int64_t value) {
       main_btree_.erase(it);
     }
   };
+
+  auto DeleteFromHash = [&](std::string &key) {
+    auto it = lookup_.find(key);
+    if (it == lookup_.end()) {
+      LOG(DEBUG) << "cannot find docid [" << value << "] in range index";
+      return;
+    }
+
+    Node *p_node = it->second;
+    p_node->Delete(value);
+    if (p_node->Size() == 0) {
+      delete p_node;
+      lookup_.erase(it);
+    }
+  };
+
   if (is_numeric_) {
     ReverseEndian(reinterpret_cast<const unsigned char *>(key.data()),
                   key2.data(), key_len);
@@ -468,7 +500,7 @@ int FieldRangeIndex::Delete(std::string &key, int64_t value) {
     char *k = strtok_r(&key_copy[0], kDelim_, &p);
     while (k != nullptr) {
       std::string key(k);
-      DeleteFromBt(key);
+      DeleteFromHash(key);
       k = strtok_r(nullptr, kDelim_, &p);
     }
   }
@@ -603,8 +635,8 @@ int64_t FieldRangeIndex::Search(const std::string &tags,
     nodes[i] = nullptr;
     const std::string &item = items[i];
 
-    auto it = main_btree_.find(item);
-    if (it == main_btree_.end()) {
+    auto it = lookup_.find(item);
+    if (it == lookup_.end()) {
       continue;
     }
 
