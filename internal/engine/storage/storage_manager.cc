@@ -5,300 +5,83 @@
  * found in the LICENSE file in the root directory of this source tree.
  */
 
-#include "storage_manager.h"
+#pragma once
 
-#include <rocksdb/advanced_cache.h>
+#include <memory>
+#include <utility>
+#include <vector>
 
-#include <sstream>
-
-#include "util/log.h"
-#include "util/utils.h"
+#include "rocksdb/db.h"
+#include "rocksdb/options.h"
+#include "rocksdb/table.h"
+#include "util/status.h"
 
 namespace vearch {
 
-StorageManager::StorageManager(const std::string &root_path)
-    : root_path_(root_path) {
-  column_families_.push_back(rocksdb::ColumnFamilyDescriptor(
-      rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions()));
-  size_ = 0;
-  db_ = nullptr;
-}
+class StorageManager {
+ public:
+  StorageManager(const std::string &root_path);
+  ~StorageManager();
+  Status Init(int cache_size);
 
-StorageManager::~StorageManager() { Close(); }
+  Status Add(int cf_id, int64_t id, const uint8_t *value, int len);
 
-void StorageManager::Close() {
-  for (auto handle : cf_handles_) {
-    if (handle) {
-      auto s = db_->DestroyColumnFamilyHandle(handle);
-      if (!s.ok()) {
-        LOG(ERROR) << "DestroyColumnFamilyHandle error: " << s.ToString();
-      }
-    }
-  }
-  db_.reset();
-  LOG(INFO) << "db closed";
-}
+  Status AddString(int cf_id, int64_t id, std::string field_name,
+                   const char *value, int len);
 
-int StorageManager::SetSize(int64_t size) {
-  size_ = size;
-  std::string key_str = "_total";
-  rocksdb::Status s = db_->Put(rocksdb::WriteOptions(), rocksdb::Slice(key_str),
-                               rocksdb::Slice(std::to_string(size_)));
-  if (!s.ok()) {
-    LOG(ERROR) << "rocksdb put error:" << s.ToString() << ", key=" << key_str;
-    return -1;
-  }
+  Status Update(int cf_id, int64_t id, uint8_t *value, int len);
+  Status Put(int cf_id, const std::string &key, std::string &value);
+  Status Delete(int cf_id, const std::string &key);
 
-  return 0;
-}
+  Status UpdateString(int cf_id, int64_t id, std::string field_name,
+                      const char *value, int len);
 
-void StorageManager::GetCacheSize(size_t &cache_size) {
-  cache_size = table_options_.block_cache->GetCapacity();
-  cache_size = cache_size / 1024 / 1024;
-}
+  std::pair<Status, std::string> Get(int cf_id, int64_t id);
+  std::pair<Status, std::string> Get(int cf_id, const std::string &key);
 
-void StorageManager::AlterCacheSize(size_t cache_size) {
-  cache_size = cache_size * 1024 * 1024;
-  table_options_.block_cache->SetCapacity(cache_size);
-}
+  Status Get(int cf_id, const std::string &key, std::string &value);
 
-Status StorageManager::Init(int cache_size) {
-  if (utils::make_dir(root_path_.c_str())) {
-    std::string msg = std::string("mkdir error, path=") + root_path_;
-    LOG(ERROR) << msg;
-    return Status::IOError(msg);
+  Status GetString(int cf_id, int64_t id, std::string &field_name,
+                   std::string &value);
+
+  std::vector<rocksdb::Status> MultiGet(int cf_id,
+                                        const std::vector<int64_t> &vids,
+                                        std::vector<std::string> &values);
+
+  std::unique_ptr<rocksdb::Iterator> NewIterator(int cf_id) {
+    return std::unique_ptr<rocksdb::Iterator>(
+        db_->NewIterator(rocksdb::ReadOptions(), cf_handles_[cf_id]));
   }
 
-  rocksdb::Options options;
-  if (cache_size) {
-    std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(cache_size);
-    table_options_.block_cache = cache;
-    options.table_factory.reset(NewBlockBasedTableFactory(table_options_));
-  }
-  options.IncreaseParallelism();
-  // options.OptimizeLevelStyleCompaction();
-  // create the DB if it's not already present
-  options.create_if_missing = true;
-  rocksdb::Status s;
+  int64_t Size() { return size_; }
 
-  std::vector<std::string> cf_names;
-  s = rocksdb::DB::ListColumnFamilies(options, root_path_, &cf_names);
+  int SetSize(int64_t size);
 
-  if (!s.ok()) {
-    rocksdb::Options options;
-    options.create_if_missing = true;
-    // create db
-    rocksdb::DB *db;
-    s = rocksdb::DB::Open(options, root_path_, &db);
-    db_.reset(db);
-    if (!s.ok()) {
-      std::string msg = std::string("open rocks db error: ") + s.ToString();
-      LOG(ERROR) << msg;
-      return Status::IOError(msg);
-    }
+  void GetCacheSize(size_t &cache_size);
 
-    // create column family
-    for (auto &cfs : column_families_) {
-      if (cfs.name == rocksdb::kDefaultColumnFamilyName) {
-        continue;
-      }
-      rocksdb::ColumnFamilyHandle *cf;
-      s = db_->CreateColumnFamily(rocksdb::ColumnFamilyOptions(), cfs.name,
-                                  &cf);
-      if (!s.ok()) {
-        LOG(ERROR) << "Error creating column family: " << s.ToString();
-      } else {
-        db_->DestroyColumnFamilyHandle(cf);
-      }
-    }
+  void AlterCacheSize(size_t cache_size);
 
-    db_.reset();
+  void Close();
+
+  int CreateColumnFamily(std::string name) {
+    column_families_.push_back(
+        rocksdb::ColumnFamilyDescriptor(name, rocksdb::ColumnFamilyOptions()));
+    return column_families_.size() - 1;
   }
 
-  // open DB
-  rocksdb::DB *db;
-  s = rocksdb::DB::Open(options, root_path_, column_families_, &cf_handles_,
-                        &db);
-  db_.reset(db);
-  if (!s.ok()) {
-    std::string msg = std::string("open rocks db error: ") + s.ToString();
-    LOG(ERROR) << msg;
-    return Status::IOError(msg);
+  std::unique_ptr<rocksdb::DB> &GetDB() { return db_; }
+
+  rocksdb::ColumnFamilyHandle *GetColumnFamilyHandle(int cf_id) {
+    return cf_handles_[cf_id];
   }
 
-  std::string key_str = "_total";
-  std::string size_str;
-
-  s = db_->Get(rocksdb::ReadOptions(), rocksdb::Slice(key_str), &size_str);
-  if (s.ok()) {
-    size_ = std::stoll(size_str);
-  } else {
-    size_ = 0;
-  }
-
-  LOG(INFO) << "init storage [" << root_path_ << "] success! size " << size_
-            << " cache_size [" << cache_size << "]M";
-  return Status::OK();
-}
-
-Status StorageManager::Add(int cf_id, int64_t id, const uint8_t *value,
-                           int len) {
-  std::string key_str = utils::ToRowKey(id);
-
-  rocksdb::Status s =
-      db_->Put(rocksdb::WriteOptions(), cf_handles_[cf_id],
-               rocksdb::Slice(key_str), rocksdb::Slice((char *)value, len));
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb put error:" << s.ToString() << ", key=" << key_str;
-    LOG(ERROR) << msg.str();
-    return Status::IOError(msg.str());
-  }
-  size_++;
-
-  if (SetSize(size_) != 0) {
-    return Status::IOError("set size error");
-  }
-  return Status::OK();
-}
-
-Status StorageManager::AddString(int cf_id, int64_t id, std::string field_name,
-                                 const char *value, int len) {
-  std::string key_str = utils::ToRowKey(id);
-  key_str = field_name + ":" + key_str;
-
-  rocksdb::Status s =
-      db_->Put(rocksdb::WriteOptions(), cf_handles_[cf_id],
-               rocksdb::Slice(key_str), rocksdb::Slice((char *)value, len));
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb put error:" << s.ToString() << ", key=" << key_str;
-    LOG(ERROR) << msg.str();
-    return Status::IOError(msg.str());
-  }
-  return Status::OK();
-}
-
-Status StorageManager::Update(int cf_id, int64_t id, uint8_t *value, int len) {
-  std::string key_str = utils::ToRowKey(id);
-
-  rocksdb::Status s =
-      db_->Put(rocksdb::WriteOptions(), cf_handles_[cf_id],
-               rocksdb::Slice(key_str), rocksdb::Slice((char *)value, len));
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb put error:" << s.ToString() << ", key=" << key_str;
-    LOG(ERROR) << msg.str();
-    return Status::IOError(msg.str());
-  }
-  return Status::OK();
-}
-
-Status StorageManager::Put(int cf_id, const std::string &key,
-                           std::string &value) {
-  rocksdb::Status s = db_->Put(rocksdb::WriteOptions(), cf_handles_[cf_id],
-                               rocksdb::Slice(key), rocksdb::Slice(value));
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb put error:" << s.ToString() << ", key=" << key;
-    LOG(ERROR) << msg.str();
-    return Status::IOError(msg.str());
-  }
-  return Status::OK();
-}
-
-Status StorageManager::Delete(int cf_id, const std::string &key) {
-  rocksdb::WriteOptions write_options;
-  rocksdb::Status s = db_->Delete(write_options, cf_handles_[cf_id], key);
-  if (!s.ok()) {
-    LOG(ERROR) << "delelte rocksdb failed: " << key << " " << s.ToString();
-    return Status::IOError(s.ToString());
-  }
-  return Status::OK();
-}
-
-Status StorageManager::UpdateString(int cf_id, int64_t id,
-                                    std::string field_name, const char *value,
-                                    int len) {
-  return AddString(cf_id, id, field_name, value, len);
-}
-
-std::pair<Status, std::string> StorageManager::Get(int cf_id, int64_t id) {
-  std::string key, value;
-  key = utils::ToRowKey(id);
-  rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), cf_handles_[cf_id],
-                               rocksdb::Slice(key), &value);
-  if (!s.ok()) {
-    return {Status::IOError("rocksdb get error: " + s.ToString() +
-                            " key=" + utils::ToRowKey(id)),
-            std::string()};
-  }
-  return {Status::OK(), std::move(value)};
-}
-
-std::pair<Status, std::string> StorageManager::Get(int cf_id,
-                                                   const std::string &key) {
-  std::string value;
-  rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), cf_handles_[cf_id],
-                               rocksdb::Slice(key), &value);
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb get error:" << s.ToString() << " key=" << key;
-    return {Status::IOError(msg.str()), std::string()};
-  }
-
-  return {Status::OK(), std::move(value)};
-}
-
-Status StorageManager::Get(int cf_id, const std::string &key,
-                           std::string &value) {
-  rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), cf_handles_[cf_id],
-                               rocksdb::Slice(key), &value);
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb get error:" << s.ToString() << " key=" << key;
-    return Status::IOError(msg.str());
-  }
-
-  return Status::OK();
-}
-
-Status StorageManager::GetString(int cf_id, int64_t id, std::string &field_name,
-                                 std::string &value) {
-  std::string key_str = utils::ToRowKey(id);
-  key_str = field_name + ":" + key_str;
-
-  rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), cf_handles_[cf_id],
-                               rocksdb::Slice(key_str), &value);
-  if (!s.ok()) {
-    std::stringstream msg;
-    msg << "rocksdb get error:" << s.ToString() << ", key=" << key_str;
-    return Status::IOError(msg.str());
-  }
-
-  return Status::OK();
-}
-
-std::vector<rocksdb::Status> StorageManager::MultiGet(
-    int cf_id, const std::vector<int64_t> &vids,
-    std::vector<std::string> &values) {
-  size_t k = vids.size();
-  std::vector<rocksdb::Slice> keys;
-  std::vector<std::string> keys_data(k);
-  std::vector<rocksdb::ColumnFamilyHandle *> column_families;
-  keys.reserve(k);
-  column_families.reserve(k);
-
-  for (size_t i = 0; i < k; i++) {
-    assert(vids[i] >= 0);
-    keys_data[i] = utils::ToRowKey(vids[i]);
-    keys.emplace_back(std::move(keys_data[i]));
-    column_families.emplace_back(cf_handles_[cf_id]);
-  }
-
-  std::vector<rocksdb::Status> statuses =
-      db_->MultiGet(rocksdb::ReadOptions(), column_families, keys, &values);
-  return statuses;
-}
+ private:
+  std::string root_path_;
+  int64_t size_;  // The total number of doc.
+  std::unique_ptr<rocksdb::DB> db_;
+  rocksdb::BlockBasedTableOptions table_options_;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families_;
+  std::vector<rocksdb::ColumnFamilyHandle *> cf_handles_;
+};
 
 }  // namespace vearch

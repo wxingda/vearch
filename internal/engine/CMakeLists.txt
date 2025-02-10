@@ -76,12 +76,7 @@ set(COMMON_LIBRARIES
     -lzstd
     -lprotobuf
     -labsl_hash
-    -labsl_base
-    -labsl_raw_hash_set
-    -labsl_city
-    -labsl_low_level_hash
-    -labsl_hashtablez_sampler
-    -labsl_raw_logging_internal
+    -lroaring
 )
 
 find_package(MKL)
