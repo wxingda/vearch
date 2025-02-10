@@ -69,6 +69,12 @@ class StorageManager {
     return column_families_.size() - 1;
   }
 
+  std::unique_ptr<rocksdb::DB> &GetDB() { return db_; }
+
+  rocksdb::ColumnFamilyHandle *GetColumnFamilyHandle(int cf_id) {
+    return cf_handles_[cf_id];
+  }
+
  private:
   std::string root_path_;
   int64_t size_;  // The total number of doc.
