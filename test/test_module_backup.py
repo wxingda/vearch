@@ -82,12 +82,12 @@ class TestBackup:
             data["s3_param"]["endpoint"] = os.getenv("S3_ENDPOINT", "minio:9000")
 
             # test db not exist
-            url = router_url + "/backup/dbs/" + "err_db" + "/spaces/" + self.space_name
+            url = router_url + "/dbs/" + "err_db" + "/spaces/" + self.space_name + "/backup"
             response = requests.post(url, auth=(username, password), json=data)
             assert response.status_code != 0
 
             # test space not exist
-            url = router_url + "/backup/dbs/" + self.db_name + "/spaces/" + "error_space"
+            url = router_url + "/dbs/" + self.db_name + "/spaces/error_space/backup"
             response = requests.post(url, auth=(username, password), json=data)
             assert response.status_code != 0
 
@@ -96,7 +96,7 @@ class TestBackup:
             assert response.status_code != 0
             return
 
-        url = router_url + "/backup/dbs/" + self.db_name
+        url = router_url + "/dbs/" + self.db_name + "/backup"
         response = requests.post(url, auth=(username, password), json=data)
 
         if not corrupted:
@@ -233,7 +233,7 @@ class TestBackup:
         except S3Error as err:
             logger.error(f"Error occurred: {err} bucket_name {bucket_name} secure {self.secure} endpoint {self.endpoint}")
 
-    def benchmark(self, command:str, corrupted: bool):
+    def benchmark(self, command: str, corrupted: bool):
         embedding_size = self.xb.shape[1]
         batch_size = 100
         k = 100
@@ -290,8 +290,8 @@ class TestBackup:
     @pytest.mark.parametrize(["command", "corrupted_data"], [
         ["export", False],
         ["export", True],
-        # ["create", False],
-        # ["create", True],
+        ["create", False],
+        ["create", True],
     ])
     def test_vearch_backup(self, command: str, corrupted_data: bool):
         self.benchmark(command, corrupted_data)
@@ -317,3 +317,4 @@ class TestBackup:
         self.backup(router_url, "export", error_param=True)
 
         destroy(router_url, self.db_name, self.space_name)
+
