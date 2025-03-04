@@ -228,8 +228,8 @@ func ExportToClusterHandler(router *gin.Engine, masterService *masterService, se
 	groupAuth.DELETE(fmt.Sprintf("/dbs/:%s/spaces/:%s", dbName, spaceName), c.deleteSpace)
 	// group.PUT(fmt.Sprintf("/dbs/:%s/spaces/:%s", dbName, spaceName), c.updateSpace)
 	groupAuth.PUT(fmt.Sprintf("/dbs/:%s/spaces/:%s", dbName, spaceName), c.updateSpaceResource)
-	groupAuth.POST(fmt.Sprintf("/backup/dbs/:%s/spaces/:%s", dbName, spaceName), c.backupSpace)
-	groupAuth.POST(fmt.Sprintf("/backup/dbs/:%s", dbName), c.backupDb)
+	groupAuth.POST(fmt.Sprintf("/dbs/:%s/spaces/:%s/backup", dbName, spaceName), c.backupSpace)
+	groupAuth.POST(fmt.Sprintf("/dbs/:%s/backup", dbName), c.backupDb)
 
 	// modify engine config handler
 	groupAuth.POST("/config/:"+dbName+"/:"+spaceName, c.modifyEngineCfg)
@@ -674,7 +674,6 @@ func (ca *clusterAPI) backupDb(c *gin.Context) {
 
 func (ca *clusterAPI) backupSpace(c *gin.Context) {
 	var err error
-	defer errutil.CatchError(&err)
 	dbName := c.Param(dbName)
 	spaceName := c.Param(spaceName)
 	data, err := io.ReadAll(c.Request.Body)
@@ -683,7 +682,6 @@ func (ca *clusterAPI) backupSpace(c *gin.Context) {
 		return
 	}
 
-	errutil.ThrowError(err)
 	log.Debug("engine config json data is [%+v]", string(data))
 	backup := &entity.BackupSpace{}
 	err = vjson.Unmarshal(data, backup)
@@ -1017,11 +1015,8 @@ func (ca *clusterAPI) deleteMember(c *gin.Context) {
 
 // get engine config
 func (ca *clusterAPI) getEngineCfg(c *gin.Context) {
-	var err error
-	defer errutil.CatchError(&err)
 	dbName := c.Param(dbName)
 	spaceName := c.Param(spaceName)
-	errutil.ThrowError(err)
 	if cfg, err := ca.masterService.Config().GetEngineCfg(c, dbName, spaceName); err != nil {
 		response.New(c).JsonError(errors.NewErrNotFound(err))
 	} else {

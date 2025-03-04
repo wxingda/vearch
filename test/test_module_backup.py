@@ -233,7 +233,7 @@ class TestBackup:
         except S3Error as err:
             logger.error(f"Error occurred: {err} bucket_name {bucket_name} secure {self.secure} endpoint {self.endpoint}")
 
-    def benchmark(self, corrupted: bool):
+    def benchmark(self, command:str, corrupted: bool):
         embedding_size = self.xb.shape[1]
         batch_size = 100
         k = 100
@@ -250,7 +250,7 @@ class TestBackup:
 
         waiting_index_finish(total)
 
-        self.backup(router_url, "create")
+        self.backup(router_url, command)
         time.sleep(30)
 
         destroy(router_url, self.db_name, self.space_name)
@@ -287,12 +287,14 @@ class TestBackup:
 
         destroy(router_url, self.db_name, self.space_name)
 
-    @pytest.mark.parametrize(["corrupted_data"], [
-        [False],
-        [True],
+    @pytest.mark.parametrize(["command", "corrupted_data"], [
+        ["export", False],
+        ["export", True],
+        # ["create", False],
+        # ["create", True],
     ])
-    def test_vearch_backup(self, corrupted_data: bool):
-        self.benchmark(corrupted_data)
+    def test_vearch_backup(self, command: str, corrupted_data: bool):
+        self.benchmark(command, corrupted_data)
 
 
     def test_error_params(self):
@@ -312,6 +314,6 @@ class TestBackup:
 
         waiting_index_finish(total)
 
-        self.backup(router_url, "create", error_param=True)
+        self.backup(router_url, "export", error_param=True)
 
         destroy(router_url, self.db_name, self.space_name)
