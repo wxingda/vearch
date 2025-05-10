@@ -1028,6 +1028,12 @@ def process_query_data(items):
             or query_type == "by_filter"
             or query_type == "by_ids_hash"
         ):
+            if value != index * batch_size + j:
+                logger.info("j = " + str(j) + ", index = " + str(index) + ", value = " + str(value))
+                logger.info("total: " + str(rs.json()["data"]["total"]))
+                logger.info(json_str)
+                for k in range(len(documents)):
+                    logger.info("documents[" + str(k) + "] = " + str(documents[k]))
             assert value == index * batch_size + j
         if query_type == "by_partition_next":
             assert documents[j]["_docid"] == str(index * batch_size + j + 1)
