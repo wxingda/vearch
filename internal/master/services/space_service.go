@@ -547,7 +547,7 @@ func (s *SpaceService) handleResourceUpdate(ctx context.Context, dbs *DBService,
 			return nil, vearchpb.NewError(vearchpb.ErrorEnum_PARAM_ERROR,
 				fmt.Errorf("space %s partition rule is empty", space.Name))
 		}
-		return s.updateSpacePartitonRule(ctx, dbs, *updateRequest.PartitionName, *updateRequest.PartitionOperatorType, updateRequest.PartitionRule, space)
+		return s.updateSpacePartitonRule(ctx, dbs, updateRequest.PartitionName, *updateRequest.PartitionOperatorType, updateRequest.PartitionRule, space)
 	}
 
 	// Handle partition number expansion
@@ -826,15 +826,15 @@ func (s *SpaceService) waitForPartitionsReady(ctx context.Context, masterClient 
 	return nil
 }
 
-func (s *SpaceService) updateSpacePartitonRule(ctx context.Context, dbs *DBService, partitionName string, partitionOperatorType string, partitionRule *entity.PartitionRule, space *entity.Space) (*entity.Space, error) {
+func (s *SpaceService) updateSpacePartitonRule(ctx context.Context, dbs *DBService, partitionName *string, partitionOperatorType string, partitionRule *entity.PartitionRule, space *entity.Space) (*entity.Space, error) {
 	masterClient := s.client.Master()
 	if partitionOperatorType == entity.Drop {
-		if partitionName == "" {
+		if partitionName == nil || *partitionName == "" {
 			return nil, vearchpb.NewError(vearchpb.ErrorEnum_PARAM_ERROR, fmt.Errorf("partition name is empty"))
 		}
 		found := false
 		for _, rangeRule := range space.PartitionRule.Ranges {
-			if rangeRule.Name == partitionName {
+			if rangeRule.Name == *partitionName {
 				found = true
 				break
 			}
@@ -844,7 +844,7 @@ func (s *SpaceService) updateSpacePartitonRule(ctx context.Context, dbs *DBServi
 		}
 		remainingPartitions := make([]*entity.Partition, 0)
 		for _, partition := range space.Partitions {
-			if partition.Name != partitionName {
+			if partition.Name != *partitionName {
 				remainingPartitions = append(remainingPartitions, partition)
 			} else {
 				// delete parition and partitionKey
@@ -866,7 +866,7 @@ func (s *SpaceService) updateSpacePartitonRule(ctx context.Context, dbs *DBServi
 		space.Partitions = remainingPartitions
 		remainingRangeRules := make([]entity.Range, 0)
 		for _, rangeRule := range space.PartitionRule.Ranges {
-			if rangeRule.Name != partitionName {
+			if rangeRule.Name != *partitionName {
 				remainingRangeRules = append(remainingRangeRules, rangeRule)
 			}
 		}
