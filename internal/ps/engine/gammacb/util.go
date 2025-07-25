@@ -29,9 +29,11 @@ func mapping2Table(cfg EngineConfig, m *mapping.IndexMapping) (*gamma.Table, err
 
 	index := cfg.Space.Index
 	indexParams := ""
-	indexType := ""
 	if index != nil && index.Params != nil {
 		indexParams = string(index.Params)
+	}
+	indexType := ""
+	if index != nil {
 		indexType = index.Type
 	}
 	var refreshInterval int32
