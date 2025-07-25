@@ -400,6 +400,159 @@ class TestSpaceCreate:
         response = drop_space(router_url, db_name, space_name)
         assert response.json()["code"] == 0
 
+    def test_vearch_space_dynamic_vector_index_management(self):
+        """Test dynamic deletion and addition of vector indexes"""
+        # Create space with vector index
+        embedding_size = 128
+        space_config = {
+            "name": space_name,
+            "partition_num": 1,
+            "replica_num": 1,
+            "fields": [
+                {"name": "field_string", "type": "keyword"},
+                {"name": "field_int", "type": "integer"},
+                {
+                    "name": "field_vector",
+                    "type": "vector",
+                    "dimension": embedding_size,
+                    "index": {
+                        "name": "gamma",
+                        "type": "FLAT",
+                        "params": {
+                            "metric_type": "InnerProduct",
+                        },
+                    },
+                },
+            ],
+        }
+
+        response = create_space(router_url, db_name, space_config)
+        assert response.json()["code"] == 0
+        logger.info("Created space with vector index")
+
+        total = 100
+        add(total, 100, xb, with_id=True)
+
+        waiting_index_finish(total)
+        
+        time.sleep(3)
+
+        search_url = router_url + "/document/search"
+        data = {
+            "db_name": db_name,
+            "space_name": space_name,
+            "vectors": [{
+                "field": "field_vector",
+                "feature": xq[0].tolist(),
+            }]
+        }
+        response = requests.post(search_url, auth=(username, password), json=data)
+        logger.info("Initial search response: %s", response.json())
+        assert response.json()["code"] == 0
+        assert len(response.json()["data"]["documents"]) == 1
+        assert len(response.json()["data"]["documents"][0]) == total
+        logger.info("Successfully searched with vector index")
+        # Remove vector index
+        update_space_config = {
+            "fields": [
+                {"name": "field_string", "type": "keyword"},
+                {"name": "field_int", "type": "integer"},
+                {
+                    "name": "field_vector",
+                    "type": "vector",
+                    "dimension": embedding_size,
+                    # remove index configuration to delete the vector index
+                },
+            ],
+        }
+
+        update_url = f"{router_url}/dbs/{db_name}/spaces/{space_name}"
+        response = requests.put(update_url, auth=(username, password), json=update_space_config)
+        logger.info("Update space response (remove index): %s", response.json())
+        assert response.json()["code"] == 0
+        logger.info("Successfully removed vector index")
+
+        time.sleep(5)
+
+        # call search again to verify index removal
+        response = requests.post(search_url, auth=(username, password), json=data)
+        logger.info("Search response after removing index: %s", response.json())
+        # Search should fail or return empty results
+        search_failed = (response.json()["code"] != 0 or
+                        "data" not in response.json() or
+                        not response.json()["data"]["documents"] or
+                        len(response.json()["data"]["documents"][0]) == 0)
+        assert search_failed, "Search should fail after removing vector index"
+        logger.info("Confirmed search fails after removing vector index")
+
+        add_index_config = {
+            "name": space_name,
+            "fields": [
+                {"name": "field_string", "type": "keyword"},
+                {"name": "field_int", "type": "integer"},
+                {
+                    "name": "field_vector",
+                    "type": "vector",
+                    "dimension": embedding_size,
+                    "index": {
+                        "name": "gamma",
+                        "type": "FLAT",
+                        "params": {
+                            "metric_type": "InnerProduct",
+                        },
+                    },
+                },
+            ],
+        }
+
+        response = requests.put(update_url, auth=(username, password), json=add_index_config)
+        logger.info("Update space response (add index): %s", response.json())
+        assert response.json()["code"] == 0
+        logger.info("Successfully added vector index back")
+
+        # Call cluster health interface and wait for index_status to become 2
+        max_wait_time = 300  # Wait up to 5 minutes
+        wait_interval = 10   # Check every 10 seconds
+        waited_time = 0
+        index_ready = False
+
+        while waited_time < max_wait_time:
+            health_response = get_cluster_health(router_url, db_name, space_name, detail=True)
+            logger.info("Cluster health response: %s", health_response.json())
+            
+            if health_response.json()["code"] == 0:
+                health_data = health_response.json()["data"]
+                if "partitions" in health_data:
+                    partitions = health_data["partitions"]
+                    all_ready = True
+                    for partition in partitions:
+                        if "index_status" not in partition or partition["index_status"] != 2:
+                            all_ready = False
+                            break
+                    
+                    if all_ready:
+                        index_ready = True
+                        logger.info("All partitions have index_status = 2, index is ready")
+                        break
+            
+            time.sleep(wait_interval)
+            waited_time += wait_interval
+            logger.info("Waiting for index to be ready... %d/%d seconds", waited_time, max_wait_time)
+
+        assert index_ready, "Index did not become ready within the expected time"
+
+        # re-search after re-adding vector index
+        response = requests.post(search_url, auth=(username, password), json=data)
+        logger.info("Final search response: %s", response.json())
+        assert response.json()["code"] == 0
+        assert len(response.json()["data"]["documents"]) == 1
+        assert len(response.json()["data"]["documents"][0]) == total
+        logger.info("Successfully searched after re-adding vector index")
+
+        # Clean up by dropping the space
+        response = drop_space(router_url, db_name, space_name)
+        assert response.json()["code"] == 0
+
     def test_destroy_db(self):
         drop_db(router_url, db_name)
 
