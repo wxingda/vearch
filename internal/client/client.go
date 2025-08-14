@@ -43,6 +43,7 @@ import (
 	"github.com/vearch/vearch/v3/internal/pkg/log"
 	"github.com/vearch/vearch/v3/internal/pkg/number"
 	"github.com/vearch/vearch/v3/internal/proto/vearchpb"
+	"google.golang.org/protobuf/proto"
 )
 
 // Client include client of master and ps
@@ -755,8 +756,34 @@ func (r *routerRequest) SearchFieldSortExecute(desc bool) *vearchpb.SearchRespon
 	startSearchPartitonsTime := time.Now()
 	var searchReq *vearchpb.SearchRequest
 	respChain := make(chan *response.SearchDocResult, len(sendPartitionMap))
+
+	var originalTopN int32 = 0
+	for _, pData := range sendPartitionMap {
+		if pData.SearchRequest != nil {
+			originalTopN = pData.SearchRequest.TopN
+			break
+		}
+	}
+	if originalTopN <= 0 {
+		originalTopN = 0
+	}
+	partNum := int32(len(sendPartitionMap))
+	var perPartitionTopN int32 = originalTopN
+	if partNum > 0 && originalTopN > 0 {
+		perPartitionTopN = (originalTopN + partNum - 1) / partNum
+		if perPartitionTopN <= 0 {
+			perPartitionTopN = 1
+		}
+	}
 	for partitionID, pData := range sendPartitionMap {
 		searchReq = pData.SearchRequest
+		if searchReq == nil {
+			continue
+		}
+
+		clonedReq := proto.Clone(searchReq).(*vearchpb.SearchRequest)
+		clonedReq.TopN = perPartitionTopN
+		pData.SearchRequest = clonedReq
 		wg.Add(1)
 		c := context.WithValue(r.ctx, share.ReqMetaDataKey, copyMap(r.md))
 		go func(ctx context.Context, partitionID entity.PartitionID, pd *vearchpb.PartitionData, respChain chan *response.SearchDocResult, isNormal bool, normalField map[string]string) {
@@ -804,10 +831,69 @@ func (r *routerRequest) SearchFieldSortExecute(desc bool) *vearchpb.SearchRespon
 
 	for _, resp := range result {
 		quickSort(resp.ResultItems, desc, 0, len(resp.ResultItems)-1)
-		if resp.ResultItems != nil && len(resp.ResultItems) > 0 && searchReq.TopN > 0 {
-			len := len(resp.ResultItems)
-			if int32(len) > searchReq.TopN {
-				resp.ResultItems = resp.ResultItems[0:searchReq.TopN]
+		if len(resp.ResultItems) > 0 && originalTopN > 0 {
+			if int32(len(resp.ResultItems)) > originalTopN {
+				resp.ResultItems = resp.ResultItems[0:originalTopN]
+			}
+		}
+	}
+
+	// Fallback logic: If the total number of results is less than topn, search each partition again with topn.
+	var totalItems int32 = 0
+	for _, resp := range result {
+		totalItems += int32(len(resp.ResultItems))
+	}
+	if totalItems < originalTopN && originalTopN > 0 {
+		var wg2 sync.WaitGroup
+		respChain2 := make(chan *response.SearchDocResult, len(sendPartitionMap))
+		for partitionID, pData := range sendPartitionMap {
+			searchReq = pData.SearchRequest
+			if searchReq == nil {
+				continue
+			}
+			clonedReq := proto.Clone(searchReq).(*vearchpb.SearchRequest)
+			clonedReq.TopN = originalTopN
+			pData.SearchRequest = clonedReq
+			wg2.Add(1)
+			c := context.WithValue(r.ctx, share.ReqMetaDataKey, copyMap(r.md))
+			go func(ctx context.Context, partitionID entity.PartitionID, pd *vearchpb.PartitionData, respChain chan *response.SearchDocResult, isNormal bool, normalField map[string]string) {
+				defer wg2.Done()
+				r.searchFromPartition(ctx, partitionID, pd, respChain, isNormal, normalField, desc)
+			}(c, partitionID, pData, respChain2, isNormal, normalField)
+		}
+		wg2.Wait()
+		close(respChain2)
+		// Merge new results
+		result = nil
+		for r := range respChain2 {
+			if r != nil && r.PartitionData.Err != nil {
+				finalErr = r.PartitionData.Err
+				continue
+			}
+			if result == nil && r != nil {
+				searchResponse = r.PartitionData.SearchResponse
+				if searchResponse != nil && len(searchResponse.Results) > 0 {
+					result = searchResponse.Results
+					continue
+				}
+			}
+			if len(result) <= len(r.PartitionData.SearchResponse.Results) {
+				for i := range result {
+					AddMergeSort(result[i], r.PartitionData.SearchResponse.Results[i], int(searchReq.TopN), desc)
+				}
+			} else {
+				for i := range r.PartitionData.SearchResponse.Results {
+					AddMergeSort(result[i], r.PartitionData.SearchResponse.Results[0], int(searchReq.TopN), desc)
+				}
+			}
+		}
+		// Sort and truncate again
+		for _, resp := range result {
+			quickSort(resp.ResultItems, desc, 0, len(resp.ResultItems)-1)
+			if len(resp.ResultItems) > 0 && originalTopN > 0 {
+				if int32(len(resp.ResultItems)) > originalTopN {
+					resp.ResultItems = resp.ResultItems[0:originalTopN]
+				}
 			}
 		}
 	}
